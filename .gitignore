@@ -1,1 +1,5 @@
-dataset/
+*dataset
+*models
+*images
+__pycache__
+transforms/*pth

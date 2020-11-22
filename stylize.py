@@ -6,8 +6,13 @@ from torchvision import transforms
 import time
 import cv2
 
-STYLE_TRANSFORM_PATH = "transforms/udnie_aggressive.pth"
-PRESERVE_COLOR = False
+MODEL_ROOT = "/home/clng/github/fast-neural-style-pytorch/models"
+OUT_ROOT = "/home/clng/test_out/fnst"
+STYLE_TRANSFORM_PATH = "/home/clng/github/fast-neural-style-pytorch/models/calligraphy_20000.pth"
+PRESERVE_COLOR = True
+CONTENT_DIR = "/home/clng/datasets/bytenow/scenes/"
+OUT_DIR = "/home/clng/test_out/fnst/calligraphy_20000"
+IMG_SIZE = 1500
 
 def stylize():
     # Device
@@ -25,16 +30,18 @@ def stylize():
             content_image_path = input("Enter the image path: ")
             content_image = utils.load_image(content_image_path)
             starttime = time.time()
-            content_tensor = utils.itot(content_image).to(device)
+            content_tensor = utils.itot(content_image, max_size=IMG_SIZE).to(device)
             generated_tensor = net(content_tensor)
             generated_image = utils.ttoi(generated_tensor.detach())
             if (PRESERVE_COLOR):
-                generated_image = utils.transfer_color(content_image, generated_image)
+                # generated_image = utils.transfer_color(content_image, generated_image)
+                generated_image = utils.transfer_color(
+                    content_image, generated_image)
             print("Transfer Time: {}".format(time.time() - starttime))
             utils.show(generated_image)
             utils.saveimg(generated_image, "helloworld.jpg")
 
-def stylize_folder_single(style_path, content_folder, save_folder):
+def stylize_folder_single(style_path, content_folder, save_folder, save_prefix=""):
     """
     Reads frames/pictures as follows:
 
@@ -52,6 +59,9 @@ def stylize_folder_single(style_path, content_folder, save_folder):
         pic3.ext
         ...
     """
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+
     # Device
     device = ("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -68,8 +78,8 @@ def stylize_folder_single(style_path, content_folder, save_folder):
             torch.cuda.empty_cache()
             
             # Load content image
-            content_image = utils.load_image(content_folder + image_name)
-            content_tensor = utils.itot(content_image).to(device)
+            content_image = utils.load_image(os.path.join(content_folder, image_name))
+            content_tensor = utils.itot(content_image, max_size=IMG_SIZE).to(device)
 
             # Generate image
             generated_tensor = net(content_tensor)
@@ -77,7 +87,8 @@ def stylize_folder_single(style_path, content_folder, save_folder):
             if (PRESERVE_COLOR):
                 generated_image = utils.transfer_color(content_image, generated_image)
             # Save image
-            utils.saveimg(generated_image, save_folder + image_name)
+            name = image_name + "_" + save_prefix
+            utils.saveimg(generated_image, os.path.join(save_folder, name))
 
 def stylize_folder(style_path, folder_containing_the_content_folder, save_folder, batch_size=1):
     """Stylizes images in a folder by batch
@@ -132,4 +143,18 @@ def stylize_folder(style_path, folder_containing_the_content_folder, save_folder
                 image_name = os.path.basename(path[i])
                 utils.saveimg(generated_image, save_folder + image_name)
 
-#stylize()
+if __name__ == '__main__':
+    stylize_folder_single(STYLE_TRANSFORM_PATH, CONTENT_DIR, OUT_DIR)
+    # cw = "1"
+    # for style in ["083", "144","udnie"]:
+    #     for style_weight in ["10","20","30","40"]:
+    #         for ab in ["1","0"]:
+    #             for train_size in ["256","512"]:
+    #                 for style_size in ["512","1024", "1536"]:
+    #                     style_name = "{s}_c{cw}_s{sw}_ts{ts}_ss{ss}_ab{ab}".format(s=style,cw=cw, sw=style_weight, ts=train_size, ss=style_size, ab=ab)
+    #                     style_path = os.path.join(MODEL_ROOT, style_name + ".pth")
+    #                     save_dir = os.path.join(OUT_ROOT, style)
+    #                     if os.path.exists(style_path):
+    #                         stylize_folder_single(
+    #                             style_path, CONTENT_DIR, save_dir, save_prefix=style_name)
+

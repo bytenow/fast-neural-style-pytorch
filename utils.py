@@ -51,7 +51,7 @@ def itot(img, max_size=None):
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.mul(255))
         ])
-
+        
     # Convert image to tensor
     tensor = itot_t(img)
 
@@ -120,3 +120,92 @@ class ImageFolderWithPaths(datasets.ImageFolder):
         # make a new tuple that includes original and the path
         tuple_with_path = (*original_tuple, path)
         return tuple_with_path
+
+def resize_to_dominant(im, dominant_target_size):
+    h = im.shape[0]
+    w = im.shape[1]
+    ratio = h * 1.0 / w
+    if ratio > 1:
+        h = dominant_target_size
+        w = int(h*1.0/ratio)
+    else:
+        w = dominant_target_size
+        h = int(w * ratio)
+    return cv2.resize(im, (w, h), interpolation=cv2.INTER_CUBIC)
+
+def transfer_color(src, dest, pixel_clip=True):
+    if pixel_clip:
+        src, dest = src.clip(0, 255), dest.clip(0, 255)
+
+    if (src.shape[:2] != dest.shape[:2]):
+        H, W = src.shape[:2]
+        dest = cv2.resize(dest, dsize=(W, H), interpolation=cv2.INTER_CUBIC)
+
+    dest_gray = cv2.cvtColor(dest, cv2.COLOR_BGR2GRAY)
+    src_yiq = cv2.cvtColor(src, cv2.COLOR_BGR2YCrCb)
+    src_yiq[..., 0] = dest_gray
+    src_bgr = cv2.cvtColor(src_yiq, cv2.COLOR_YCrCb2BGR)
+
+    return src_bgr
+
+
+def hist_norm(x, bin_edges, quantiles, inplace=False):
+    """
+    Linearly transforms the histogram of an image such that the pixel values
+    specified in `bin_edges` are mapped to the corresponding set of `quantiles`
+
+    Arguments:
+    -----------
+        x: np.ndarray
+            Input image; the histogram is computed over the flattened array
+        bin_edges: array-like
+            Pixel values; must be monotonically increasing
+        quantiles: array-like
+            Corresponding quantiles between 0 and 1. Must have same length as
+            bin_edges, and must be monotonically increasing
+        inplace: bool
+            If True, x is modified in place (faster/more memory-efficient)
+
+    Returns:
+    -----------
+        x_normed: np.ndarray
+            The normalized array
+    """
+
+    bin_edges = np.atleast_1d(bin_edges)
+    quantiles = np.atleast_1d(quantiles)
+
+    if bin_edges.shape[0] != quantiles.shape[0]:
+        raise ValueError('# bin edges does not match number of quantiles')
+
+    if not inplace:
+        x = x.copy()
+    oldshape = x.shape
+    pix = x.ravel()
+
+    # get the set of unique pixel values, the corresponding indices for each
+    # unique value, and the counts for each unique value
+    pix_vals, bin_idx, counts = np.unique(pix, return_inverse=True,
+                                          return_counts=True)
+
+    # take the cumsum of the counts and normalize by the number of pixels to
+    # get the empirical cumulative distribution function (which maps pixel
+    # values to quantiles)
+    ecdf = np.cumsum(counts).astype(np.float64)
+    ecdf /= ecdf[-1]
+
+    # get the current pixel value corresponding to each quantile
+    curr_edges = pix_vals[ecdf.searchsorted(quantiles)]
+
+    # how much do we need to add/subtract to map the current values to the
+    # desired values for each quantile?
+    diff = bin_edges - curr_edges
+
+    # interpolate linearly across the bin edges to get the delta for each pixel
+    # value within each bin
+    pix_delta = np.interp(pix_vals, curr_edges, diff).astype(np.uint8)
+
+    # add these deltas to the corresponding pixel values
+    pix += pix_delta[bin_idx]
+
+    return pix.reshape(oldshape)

@@ -16,7 +16,8 @@ class VGG19(nn.Module):
             param.requires_grad = False
 
     def forward(self, x):
-        layers = {'3': 'relu1_2', '8': 'relu2_2', '17': 'relu3_4', '22': 'relu4_2', '26': 'relu4_4', '35': 'relu5_4'}
+        # layers = {'3': 'relu1_2', '8': 'relu2_2', '17': 'relu3_4', '22': 'relu4_2', '26': 'relu4_4', '35': 'relu5_4'}
+        layers = {'3': 'relu1_2', '8': 'relu2_2', '17': 'relu3_4', '26': 'relu4_4', '35': 'relu5_4'}
         features = {}
         for name, layer in self.features._modules.items():
             x = layer(x)
